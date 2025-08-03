@@ -3,7 +3,7 @@
 A Streamlit web app to predict **Supply Chain Emission Factors (without margins)** using industry and emission inputs. Includes visual insights and a GHG data explorer.
 
 ## 🔗 Live Demo
-[Click to View on Streamlit Cloud](https://your-streamlit-app-url)
+[Click to View on Streamlit Cloud](https://emission-predictor-app-54ft5n6krqkwfurietntzc.streamlit.app/)
 
 ## 📊 Features
 - Predict emission factors using a trained Random Forest model
@@ -22,3 +22,4 @@ A Streamlit web app to predict **Supply Chain Emission Factors (without margins)
 ```bash
 git clone https://github.com/your-username/emission-predictor-app.git
 cd emission-predictor-app
+
