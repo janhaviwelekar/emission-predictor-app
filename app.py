@@ -1,104 +1,85 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
 
-st.set_page_config(page_title="Supply Chain Emission Predictor", layout="wide")
-
+st.set_page_config(page_title="Supply Chain Emission Factor (With Margin) Predictor", layout="wide")
 
 @st.cache_data
 def load_data():
-    return pd.read_csv("SupplyChainGHGEmissionFactors.csv")
+    df = pd.read_csv("SupplyChainGHGEmissionFactors.csv")
+    df.dropna(inplace=True)
+    return df
 
 df = load_data()
-df.dropna(inplace=True)
+st.title("🌍 Supply Chain Emission Factor with Margin - ML Predictor")
 
 
-features = ['2017 NAICS Title', 'GHG', 'Unit', 'Margins of Supply Chain Emission Factors',
-            'Supply Chain Emission Factors with Margins']
-target = 'Supply Chain Emission Factors without Margins'
+features = ['2017 NAICS Title', 'GHG', 'Unit',
+            'Supply Chain Emission Factors without Margins',
+            'Margins of Supply Chain Emission Factors']
+target = 'Supply Chain Emission Factors with Margins'
 
 X = df[features]
 y = df[target]
 
-label_encoders = {}
+encoders = {}
 for col in ['2017 NAICS Title', 'GHG', 'Unit']:
     le = LabelEncoder()
     X[col] = le.fit_transform(X[col])
-    label_encoders[col] = le
+    encoders[col] = le
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
 
-model = RandomForestRegressor(random_state=42)
-model.fit(X, y)
+st.sidebar.header("🔧 Input Parameters")
+industry = st.sidebar.selectbox("Industry", df['2017 NAICS Title'].unique())
+ghg = st.sidebar.selectbox("GHG Type", df['GHG'].unique())
+unit = st.sidebar.selectbox("Unit", df['Unit'].unique())
+margin = st.sidebar.slider("Margin Value", 0.0, 1.0, 0.1)
+no_margin = st.sidebar.slider("Emission Factor (Without Margin)", 0.0, 10.0, 1.0)
 
 
-st.sidebar.title("🔧 Configuration")
-st.sidebar.markdown("Customize your inputs to predict emission factor without margins.")
+input_data = pd.DataFrame({
+    '2017 NAICS Title': [encoders['2017 NAICS Title'].transform([industry])[0]],
+    'GHG': [encoders['GHG'].transform([ghg])[0]],
+    'Unit': [encoders['Unit'].transform([unit])[0]],
+    'Supply Chain Emission Factors without Margins': [no_margin],
+    'Margins of Supply Chain Emission Factors': [margin]
+})
 
-st.title("🌍 Supply Chain Emission Factor Predictor (No Margin)")
 
-st.subheader("📈 Make a Prediction")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    industry = st.selectbox("Industry", df['2017 NAICS Title'].unique())
-with col2:
-    ghg = st.selectbox("GHG Type", df['GHG'].unique())
-with col3:
-    unit = st.selectbox("Unit", df['Unit'].unique())
-
-col4, col5 = st.columns(2)
-with col4:
-    margin = st.number_input("Margin Value", min_value=0.0, value=0.1)
-with col5:
-    emission_with_margin = st.number_input("Emission With Margin", min_value=0.0, value=1.0)
-
-if st.button("🔍 Predict"):
-    industry_enc = label_encoders['2017 NAICS Title'].transform([industry])[0]
-    ghg_enc = label_encoders['GHG'].transform([ghg])[0]
-    unit_enc = label_encoders['Unit'].transform([unit])[0]
-    
-    input_data = np.array([[industry_enc, ghg_enc, unit_enc, margin, emission_with_margin]])
+if st.sidebar.button("🔍 Predict Emission with Margin"):
     prediction = model.predict(input_data)[0]
-    st.success(f"💡 Predicted Emission Factor (Without Margin): **{prediction:.3f} kg CO2e/USD**")
+    st.success(f"Predicted Emission Factor (With Margin): {prediction:.4f} kg CO2e/USD")
 
+st.subheader("📊 Model Performance on Test Set")
+y_pred = model.predict(X_test)
+st.write(f"**R² Score**: {r2_score(y_test, y_pred):.3f}")
+st.write(f"**RMSE**: {np.sqrt(mean_squared_error(y_test, y_pred)):.3f}")
 
-st.markdown("---")
-st.subheader("📊 Top 10 Emitting Industries (on avg)")
-
-top_emissions = (
-    df.groupby("2017 NAICS Title")[target]
-    .mean()
-    .sort_values(ascending=False)
-    .head(10)
-)
-
+st.subheader("🔬 Top Emitting Industries (Avg Emission With Margin)")
+top_emitters = df.groupby("2017 NAICS Title")[target].mean().sort_values(ascending=False).head(10)
 fig, ax = plt.subplots(figsize=(10, 6))
-sns.barplot(x=top_emissions.values, y=top_emissions.index, palette="Reds_r", ax=ax)
-ax.set_xlabel("Avg Emission Factor (without Margins)")
-ax.set_ylabel("Industry")
-ax.set_title("Top 10 Industries by Emissions")
+sns.barplot(x=top_emitters.values, y=top_emitters.index, palette="rocket", ax=ax)
+ax.set_xlabel("Avg Emission (With Margin)")
+ax.set_title("Top 10 Emitting Industries")
 st.pyplot(fig)
 
 
-st.markdown("---")
-st.subheader("🧪 Explore by GHG Type")
-
-selected_ghg = st.selectbox("Choose GHG to analyze:", df['GHG'].unique())
-filtered = df[df['GHG'] == selected_ghg]
-
-st.write(f"Showing {len(filtered)} rows with GHG type: {selected_ghg}")
-st.dataframe(filtered[['2017 NAICS Title', 'Supply Chain Emission Factors without Margins']].sort_values(by='Supply Chain Emission Factors without Margins', ascending=False).head(10))
+st.subheader("🧪 Feature Correlation Heatmap")
+encoded_df = X.copy()
+encoded_df[target] = y
+fig2, ax2 = plt.subplots(figsize=(10, 6))
+sns.heatmap(encoded_df.corr(), annot=True, cmap="coolwarm", ax=ax2)
+st.pyplot(fig2)
 
 
-st.markdown("---")
-st.subheader("🧠 Insights")
-st.markdown(f"""
-- There are **{df['2017 NAICS Title'].nunique()}** unique industries.
-- The most common GHG type is **{df['GHG'].mode()[0]}**.
-- Highest emission (without margin) is approximately **{df[target].max():.2f}**.
-- Lowest emission (without margin) is approximately **{df[target].min():.2f}**.
-""")
+with st.expander("📁 Show Raw Dataset"):
+    st.dataframe(df.head())
+
