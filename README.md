@@ -18,7 +18,7 @@ A Streamlit web app to predict **Supply Chain Emission Factors (without margins)
 
 ## 🚀 Run Locally
 
-1. Clone the repo
+1. Clone the repository
 ```bash
 git clone https://github.com/your-username/emission-predictor-app.git
 cd emission-predictor-app
